@@ -1,0 +1,34 @@
+Personal custom OpenClaude snapshot
+
+Owner: adrianbassir
+Base: OpenClaude v0.34.0, commit a7b976383c1d103bfa746c7470acb1c2e31c77cf.
+
+The exact customized Windows build is preserved in custom-build/.
+Download the release asset or the ZIP in that folder, extract all files,
+and follow START-HERE.txt inside it. It requires your own API credentials.
+The bundled launcher runs that custom copy, independently of a global install.
+
+Release: https://github.com/adrianbassir/openclaude/releases/tag/custom-v0.34.0-20261106
+Upstream: https://github.com/Twigpine/openclaude
+
+No existing application source, package metadata, dependency lockfiles, or
+runtime behavior was changed to establish this personal fork snapshot.
+The archived CLI matches the installed custom CLI byte for byte. Checksums
+are recorded in custom-build/manifest.json and custom-build/SHA256SUMS.txt.
+The original project's LICENSE and notices are retained.
+
+The snapshot includes the Venice/DeepSeek mode and model-persistence fixes,
+unlimited-turn support, stable prompt caching, and repaired automatic
+token-threshold compaction. Personal settings, API keys and chat history
+are excluded. Unknown-model fallback pricing remains an unresolved issue.
+
+IMPORTANT FOR FUTURE DEVELOPMENT
+The src/ tree remains the original upstream 0.34.0 source. The earlier local
+customizations were made to the installed compiled CLI. Building this source
+will therefore produce the upstream build rather than the archived custom
+build. Use the ZIP to run the customized version. Porting the customizations
+to maintainable source is separate future work and has not been done here.
+
+The custom-build-0.34.0 branch preserves this snapshot; main is unchanged.
+The local checkout uses origin for the personal fork and upstream for the
+original repository. No npm release or package rename was performed.

@@ -1,0 +1,1 @@
+3fc8c6ea252baac6ea929e38566f77728fe72447e3e46d14c5a0213eafabb4f1  openclaude-custom-0.34.0-windows.zip

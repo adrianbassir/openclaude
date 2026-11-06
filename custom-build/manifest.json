@@ -1,0 +1,17 @@
+{
+  "snapshot_date": "2026-11-06",
+  "owner": "adrianbassir",
+  "upstream_repository": "https://github.com/Twigpine/openclaude",
+  "upstream_commit": "a7b976383c1d103bfa746c7470acb1c2e31c77cf",
+  "upstream_version": "0.34.0",
+  "snapshot_kind": "unchanged installed custom build; upstream source files are unchanged",
+  "archive": "openclaude-custom-0.34.0-windows.zip",
+  "archive_bytes": 12366052,
+  "archive_sha256": "3fc8c6ea252baac6ea929e38566f77728fe72447e3e46d14c5a0213eafabb4f1",
+  "custom_cli_sha256": "1c5893f922ae5f90e965f9d457fa326c2b8086218241b1ba294514ff5524115c",
+  "package_files_verified": 768,
+  "personal_settings_or_history_included": false,
+  "configured_credentials_found_in_archive": false,
+  "platform": "Windows",
+  "requires_node": ">=24.22.1"
+}
