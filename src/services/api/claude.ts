@@ -82,6 +82,10 @@ import {
   shouldUseIntegrationRuntimeLimits,
 } from '../../utils/context.js'
 import { resolveAppliedEffort } from '../../utils/effort.js'
+import {
+  isVeniceBaseUrl,
+  resolveActiveRouteIdFromEnv,
+} from '../../integrations/routeMetadata.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
 import { computeFingerprintFromMessages } from '../../utils/fingerprint.js'
@@ -1810,6 +1814,15 @@ async function* queryModel(
           type: 'enabled',
         } satisfies BetaMessageStreamParams['thinking']
       }
+    } else if (
+      thinkingConfig.type === 'disabled' &&
+      (options.providerOverride
+        ? isVeniceBaseUrl(options.providerOverride.baseURL)
+        : resolveActiveRouteIdFromEnv(process.env) === 'venice')
+    ) {
+      // Venice may reason by default when the thinking preference is omitted.
+      // Forward the explicit preference so the shim can translate it.
+      thinking = { type: 'disabled' }
     }
 
     // Get API context management strategies if enabled

@@ -1,4 +1,12 @@
 import { defineVendor } from '../define.js'
+import type { ReasoningControlMetadata } from '../descriptors.js'
+
+const flashReasoning: ReasoningControlMetadata = {
+  mode: 'levels',
+  levels: ['low', 'high', 'max'],
+  defaultLevel: 'high',
+  wireFormat: 'reasoning_effort',
+}
 
 export default defineVendor({
   id: 'venice',
@@ -42,6 +50,24 @@ export default defineVendor({
         id: 'venice-uncensored',
         apiName: 'venice-uncensored',
         label: 'Venice Uncensored',
+      },
+      {
+        id: 'deepseek-v4-1-flash-1017-uncensored',
+        apiName: 'deepseek-v4-1-flash-1017-uncensored',
+        label: 'DeepSeek V4.1 Flash 1017 Uncensored',
+        reasoning: flashReasoning,
+      },
+      {
+        id: 'deepseek-v4-1-flash-1017',
+        apiName: 'deepseek-v4-1-flash-1017',
+        label: 'DeepSeek V4.1 Flash 1017',
+        reasoning: flashReasoning,
+      },
+      {
+        id: 'deepseek-v4-flash-0731',
+        apiName: 'deepseek-v4-flash-0731',
+        label: 'DeepSeek V4 Flash 0731',
+        reasoning: flashReasoning,
       },
     ],
   },

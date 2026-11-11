@@ -6,6 +6,8 @@ import {
   resolveModelRuntimeLimits,
   resolveOpenAIShimRuntimeContext,
 } from '../../../integrations/runtimeMetadata.js'
+import { isVeniceBaseUrl } from '../../../integrations/routeMetadata.js'
+import { getSessionId } from '../../../bootstrap/state.js'
 import { compressToolHistory } from '../compressToolHistory.js'
 import {
   convertAnthropicMessagesToResponsesInput,
@@ -154,16 +156,17 @@ export function prepareOpenAIRequest({
       : shimConfig.endpointPath?.startsWith('/models/gemini-')
         ? 'gemini'
         : request.transport
+  const isVeniceChatRequest =
+    effectiveTransport === 'chat_completions' && isVeniceBaseUrl(request.baseUrl)
   // Mirror the native-transport guard (shouldCompressNativeToolHistory):
   // compressToolHistory's window is measured from the end of the conversation,
   // so each turn rewrites tool results that were already sent verbatim. On
   // providers with implicit prefix caching that mutates the middle of the
   // request prefix and forfeits the entire cache downstream — costing far more
   // than the compression saves.
-  const skipCompressionForPrefixCache = providerUsesImplicitPrefixCaching(
-    runtimeShimContext.routeId,
-    request.baseUrl,
-  )
+  const skipCompressionForPrefixCache =
+    isVeniceChatRequest ||
+    providerUsesImplicitPrefixCaching(runtimeShimContext.routeId, request.baseUrl)
   const compressedMessages =
     effectiveTransport === 'chat_completions' ||
     effectiveTransport === 'responses' ||
@@ -206,13 +209,13 @@ export function prepareOpenAIRequest({
     params.tools.length > 0 &&
     modelRequiresResponsesApi(request.resolvedModel) &&
     baseUrlSupportsResponsesAutoRoute(request.baseUrl, requestProcessEnv)
+  const requestThinkingType = (params.thinking as { type?: string } | undefined)?.type
   const reasoningRequestPlan = resolveOpenAIShimReasoningRequestPlan({
     model: runtimeModel,
     requestedEffort: suppressReasoningForForcedChat
       ? undefined
       : request.reasoning?.effort,
-    requestThinkingType:
-      (params.thinking as { type?: string } | undefined)?.type,
+    requestThinkingType,
     defaultThinkingType: request.thinking?.type,
     thinkingRequestFormat: shimConfig.thinkingRequestFormat,
     routeId: runtimeShimContext.routeId ?? 'custom',
@@ -225,6 +228,9 @@ export function prepareOpenAIRequest({
     ...(openaiMessages ? { messages: openaiMessages } : {}),
     stream: params.stream ?? false,
     store: false,
+  }
+  if (isVeniceChatRequest) {
+    body.prompt_cache_key = `openclaude-venice:${getSessionId()}`
   }
   if (
     reasoningRequestPlan.wireFormat === 'reasoning_effort' &&
@@ -311,6 +317,11 @@ export function prepareOpenAIRequest({
       request.baseUrl,
       reasoningRequestPlan,
     )
+  }
+  if (isVeniceChatRequest && requestThinkingType === 'disabled') {
+    body.venice_parameters = { disable_thinking: true }
+    delete body.thinking
+    delete body.reasoning_effort
   }
   for (const field of shimConfig.removeBodyFields ?? []) delete body[field]
 

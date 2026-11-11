@@ -129,6 +129,10 @@ import { applyToolResultBudget } from './utils/toolResultStorage.js'
 import { resolveNextFallbackProviderFromState } from './utils/providerFallback.js'
 import { setActiveProviderProfile, getActiveProviderProfile } from './utils/providerProfiles.js'
 import { getPrimaryModel } from './utils/providerModels.js'
+import {
+  isVeniceBaseUrl,
+  resolveActiveRouteIdFromEnv,
+} from './integrations/routeMetadata.js'
 import { recordContentReplacement } from './utils/sessionStorage.js'
 import { handleStopHooks } from './query/stopHooks.js'
 import {
@@ -940,8 +944,13 @@ async function* queryLoop(
     }
 
     let tracking = autoCompactTracking
+    const providerOverride = toolUseContext.options.providerOverride
+    const preserveVenicePrefix = providerOverride
+      ? isVeniceBaseUrl(providerOverride.baseURL)
+      : resolveActiveRouteIdFromEnv(process.env) === 'venice'
     const configuredMaxMessagesCompactionThreshold =
-      getGlobalConfig().maxMessagesCompactionThreshold
+      getGlobalConfig().maxMessagesCompactionThreshold ??
+      (preserveVenicePrefix ? 'off' : undefined)
 
     // Enforce per-message budget on aggregate tool result size. Runs BEFORE
     // microcompact — cached MC operates purely by tool_use_id (never inspects
@@ -992,12 +1001,13 @@ async function* queryLoop(
       queryCheckpoint('query_snip_end')
     }
 
-    // Apply microcompact before autocompact
+    // Venice can reuse the existing prefix while new tool results are appended.
+    // Keep token-limit compaction and the hard message safety cap available.
     queryCheckpoint('query_microcompact_start')
     let microcompactResult: MicrocompactResult | undefined
     if (
-      querySource === 'compact' ||
-      configuredMaxMessagesCompactionThreshold !== 'off'
+      !preserveVenicePrefix &&
+      (querySource === 'compact' || configuredMaxMessagesCompactionThreshold !== 'off')
     ) {
       microcompactResult = await deps.microcompact(
         messagesForQuery,
@@ -1026,7 +1036,7 @@ async function* queryLoop(
     // Within a turn, the view flows forward via state.messages at the
     // continue site (query.ts:1192), and the next projectView() no-ops
     // because the archived messages are already gone from its input.
-    if (feature('CONTEXT_COLLAPSE') && contextCollapse) {
+    if (feature('CONTEXT_COLLAPSE') && contextCollapse && !preserveVenicePrefix) {
       const collapseResult = await contextCollapse.applyCollapsesIfNeeded(
         messagesForQuery,
         toolUseContext,
@@ -1379,6 +1389,7 @@ async function* queryLoop(
       // subagent must still preempt its own oversized turn rather than defer to
       // a reduction that does not apply to its messages.
       collapseOwnsIt =
+        !preserveVenicePrefix &&
         (contextCollapse?.isMainThreadSource(querySource) ?? false) &&
         (contextCollapse?.hasActiveReduction() ?? false) &&
         isAutoCompactEnabled()
@@ -2156,6 +2167,7 @@ async function* queryLoop(
         if (
           feature('CONTEXT_COLLAPSE') &&
           contextCollapse &&
+          !preserveVenicePrefix &&
           state.transition?.reason !== 'collapse_drain_retry'
         ) {
           const drained = contextCollapse.recoverFromOverflow(

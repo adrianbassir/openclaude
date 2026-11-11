@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test'
 import { ensureIntegrationsLoaded } from '../../../integrations/index.js'
+import { resolveAppliedEffort } from '../../../utils/effort.js'
 import { resolveProviderRequest } from '../providerConfig.js'
+import { convertMessages } from './messageConversion.js'
 import { prepareOpenAIRequest } from './requestPreparation.js'
 
 const convertedTools = [{
@@ -26,6 +28,74 @@ const dependencies = {
   isGeminiMode: () => false,
   shouldPreserveGeminiThoughtSignature: () => false,
 }
+
+test('Venice retains the wire prefix when a tool result ages out of the recent window', () => {
+  ensureIntegrationsLoaded()
+  const model = 'deepseek-v4-1-flash-1017-uncensored'
+  const processEnv = { OPENAI_BASE_URL: 'https://api.venice.ai/api/v1' }
+  const request = resolveProviderRequest({ model, processEnv })
+  const exchanges = Array.from({ length: 18 }, (_, i) => [
+    {
+      role: 'assistant',
+      content: [{ type: 'tool_use', id: `tool_${i}`, name: 'Bash', input: { command: `check ${i}` } }],
+    },
+    {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: `tool_${i}`, content: `result ${i}\n`.repeat(400) }],
+    },
+  ])
+  const prepare = (count: number) => JSON.parse(prepareOpenAIRequest({
+    request,
+    requestProcessEnv: processEnv,
+    params: {
+      model,
+      messages: [{ role: 'user', content: 'Check the files' }, ...exchanges.slice(0, count).flat()],
+      system: 'Keep this system prompt',
+      tools: [{ name: 'Read' }],
+      max_tokens: 64,
+    },
+    dependencies: { ...dependencies, convertMessages },
+  }).serializeBody())
+
+  const before = prepare(17)
+  const after = prepare(18)
+  expect(after.prompt_cache_key).toMatch(/^openclaude-venice:/)
+  expect(after.prompt_cache_key).toBe(before.prompt_cache_key)
+  expect(after.messages.slice(0, before.messages.length)).toEqual(before.messages)
+  expect(after.messages[3].content).toBe('result 0\n'.repeat(400))
+  expect(after.tools).toEqual(before.tools)
+})
+
+test('Venice DeepSeek Flash supports low effort and explicitly disabling thinking', () => {
+  ensureIntegrationsLoaded()
+  const model = 'deepseek-v4-1-flash-1017-uncensored'
+  const baseUrl = 'https://api.venice.ai/api/v1'
+  const processEnv = { OPENAI_BASE_URL: baseUrl }
+  const prepare = (effort?: 'low', disableThinking = false) => {
+    const resolved = resolveAppliedEffort(model, effort, { routeId: 'venice', baseUrl, processEnv })
+    const request = resolveProviderRequest({
+      model,
+      processEnv,
+      reasoningEffortOverride: resolved === 'low' || resolved === 'high' ? resolved : undefined,
+    })
+    return prepareOpenAIRequest({
+      request,
+      requestProcessEnv: processEnv,
+      params: {
+        model,
+        messages: [{ role: 'user', content: 'hello' }],
+        max_tokens: 64,
+        thinking: disableThinking ? { type: 'disabled' } : undefined,
+      },
+      dependencies,
+    }).body
+  }
+  expect(prepare().reasoning_effort).toBe('high')
+  expect(prepare('low').reasoning_effort).toBe('low')
+  const disabled = prepare(undefined, true)
+  expect(disabled.venice_parameters).toEqual({ disable_thinking: true })
+  expect(disabled).not.toHaveProperty('reasoning_effort')
+})
 
 test('keeps store: false by default and removes it only for configured routes', async () => {
   await ensureIntegrationsLoaded()
